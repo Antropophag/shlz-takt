@@ -87,6 +87,7 @@ const viewportStops = [
 let viewportAnimationFrame;
 let isViewportAnimating = false;
 let wheelCooldownUntil = 0;
+let touchStartY;
 
 function getViewportOffsets() {
   return viewportStops.map(
@@ -135,6 +136,21 @@ function animateToViewport(index) {
   viewportAnimationFrame = window.requestAnimationFrame(move);
 }
 
+function restartRoute() {
+  if (isViewportAnimating) return;
+
+  window.cancelAnimationFrame(viewportAnimationFrame);
+  isViewportAnimating = true;
+  window.scrollTo(0, 0);
+  renderState(0, false);
+  wheelCooldownUntil = window.performance.now() + 420;
+
+  window.requestAnimationFrame(() => {
+    isViewportAnimating = false;
+    document.querySelector(".hero")?.focus({ preventScroll: true });
+  });
+}
+
 function getDirectionalViewportIndex(direction) {
   const offsets = getViewportOffsets();
   if (direction > 0) {
@@ -149,11 +165,21 @@ function getDirectionalViewportIndex(direction) {
   return 0;
 }
 
+function isAtLastViewport() {
+  const offsets = getViewportOffsets();
+  return window.scrollY >= offsets[offsets.length - 1] - 2;
+}
+
 function handleViewportWheel(event) {
   if (event.ctrlKey || Math.abs(event.deltaY) < 8) return;
   event.preventDefault();
 
   if (isViewportAnimating || window.performance.now() < wheelCooldownUntil) {
+    return;
+  }
+
+  if (event.deltaY > 0 && isAtLastViewport()) {
+    restartRoute();
     return;
   }
 
@@ -170,11 +196,45 @@ function handleViewportKey(event) {
   event.preventDefault();
   if (isViewportAnimating) return;
   const direction = downKeys.includes(event.key) ? 1 : -1;
+
+  if (direction > 0 && isAtLastViewport()) {
+    restartRoute();
+    return;
+  }
+
   animateToViewport(getDirectionalViewportIndex(direction));
+}
+
+function handleTouchStart(event) {
+  touchStartY = event.touches[0]?.clientY;
+}
+
+function handleTouchMove(event) {
+  const currentY = event.touches[0]?.clientY;
+  if (
+    touchStartY === undefined ||
+    currentY === undefined ||
+    touchStartY - currentY < 48 ||
+    !isAtLastViewport()
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+  touchStartY = undefined;
+  restartRoute();
+}
+
+function resetTouch() {
+  touchStartY = undefined;
 }
 
 window.addEventListener("wheel", handleViewportWheel, { passive: false });
 window.addEventListener("keydown", handleViewportKey);
+window.addEventListener("touchstart", handleTouchStart, { passive: true });
+window.addEventListener("touchmove", handleTouchMove, { passive: false });
+window.addEventListener("touchend", resetTouch, { passive: true });
+window.addEventListener("touchcancel", resetTouch, { passive: true });
 
 document.querySelectorAll('a[href^="#"]').forEach((link) => {
   link.addEventListener("click", (event) => {
