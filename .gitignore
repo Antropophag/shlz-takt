@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.impeccable/
+.vite/
+chrome/
+ref/
+.DS_Store
+*.log
